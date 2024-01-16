@@ -1,0 +1,142 @@
+library(gplots)
+library(ggplot2)
+
+#load t1r2 phenotype data
+t1r2_CD_aging #Replace name of any similarly formatted file, including larger datasets.
+View(t1r2_CD_aging)
+# Calculate the number of non-missing values in each column
+non_missing_counts <- colSums(!is.na(t1r2_CD_aging))
+
+# Identify columns with less than 8 non-missing values
+columns_to_remove <- names(non_missing_counts)[non_missing_counts < 8]
+
+# Remove columns with less than 8 non-missing values
+data <- t1r2_CD_aging[, !(names(t1r2_CD_aging) %in% columns_to_remove)]
+
+View(data)
+
+
+# Calculate correlations while handling NA values
+phe_corr <- cor(data, use = "pairwise.complete.obs", method = "pearson")
+print(phe_corr)
+View(phe_corr)
+
+#Double check that R calculations match GeneNetwork2 using first two columns:
+#Extract columns 'tas1r2' (column 1) and 'CD_Soleus_F>26wk_[g]' (column 2)
+column1 <- data[, 'Tas1r2']
+column2 <- data[, 'BodyWtDiff_12to18mo_CD_24734']
+
+# Calculate Pearson correlation between column 1 and column 2
+correlation <- cor(column1, column2, use = "pairwise.complete.obs", method = "pearson")
+
+# Create a data frame for plotting
+plot_data <- data.frame(Tas1r2 = as.numeric(data$`Tas1r2`), BodyWtDiff_12to18mo_CD_24734 = as.numeric(data$BodyWtDiff_12to18mo_CD_24734))
+
+# Remove rows with NA values in either column
+plot_data <- plot_data[complete.cases(plot_data), ]
+
+# Calculate Pearson correlation between tas1r2 and CD_Soleus_F>26wk_[g]
+correlation <- cor(plot_data$Tas1r2, plot_data$BodyWtDiff_12to18mo_CD_24734
+, method = "pearson")
+
+# Create scatter plot using ggplot with regression line and correlation value
+ggplot(plot_data, aes(x = Tas1r2, y = BodyWtDiff_12to18mo_CD_24734
+)) +
+  geom_point() +  # Add points for scatter plot
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +  # Add regression line
+  annotate("text", x = max(plot_data$Tas1r2), y = max(plot_data$BodyWtDiff_12to18mo_CD_24734
+), 
+           label = paste("Pearson Correlation =", round(correlation, 3)), 
+           hjust = 1, vjust = 1, color = "red") +  # Add correlation value text
+  labs(title = "Scatter plot of tas1r2 vs. BodyWtDiff_12to18mo_CD_24734
+", 
+       x = "tas1r2", y = "BodyWtDiff_12to18mo_CD_24734
+")
+
+#The output matches GeneNetwork2. Create a heatmap for all correlations to compare to GeneNetwork2 
+# Create a transposed copy of the correlation matrix
+transposed_phe_corr <- t(phe_corr)
+
+# Create a heatmap using heatmap.2 with labels on the left and bottom
+heatmap.2(transposed_phe_corr,
+          Rowv = FALSE,     # Suppress row dendrogram
+          Colv = FALSE,     # Suppress column dendrogram
+          dendrogram = "none",  # Suppress both dendrograms
+          col = colorRampPalette(c("blue", "white", "red"))(100),  # Define color range
+          trace = "none",   # Suppress trace lines
+          key = TRUE,       # Include color scale legend
+          key.title = "Correlation",  # Set legend title
+          key.xlab = "Correlation Strength",  # Set legend x-axis label
+          main = "Heatmap of Pearson Correlations",
+          xlab = "Variables", ylab = "Variables",
+          margins = c(12, 12))  # Adjust margins to make labels visible
+
+# Adjust the values in the 'margins' parameter as needed to ensure the labels are fully visible within the heatmap.
+#This also matches GeneNetwork2's heatmap. 
+
+#Display only correlations where p-value < 0.07 for t1r2 row
+# Extract the gene/phenotype names from the first row
+variable_names <- as.character(data[1, ])
+
+# Remove the first row (gene/phenotype names) for correlation calculation
+data_numeric <- as.data.frame(data[-1, ])
+
+# Calculate correlations while handling NA values
+phe_corr <- cor(data_numeric, use = "pairwise.complete.obs", method = "pearson")
+
+# Calculate p-values for correlations
+p_values <- matrix(NA, ncol = ncol(data_numeric), nrow = ncol(data_numeric))
+
+# Loop through each pair of columns and calculate correlation and p-value
+for (i in 1:(ncol(data_numeric) - 1)) {
+  for (j in (i + 1):ncol(data_numeric)) {
+    result <- cor.test(data_numeric[, i], data_numeric[, j], use = "pairwise.complete.obs", method = "pearson")
+    p_values[i, j] <- result$p.value   # Store p-value
+    p_values[j, i] <- result$p.value   # Fill in the symmetric position
+  }
+}
+
+# Display the correlation matrix
+print(phe_corr)
+
+# Display the p-values matrix
+print(p_values)
+
+
+
+#print only correlations with t1r2 that have p value < 0.07
+# Set the significance threshold
+significance_threshold <- 0.07
+
+# Extract the p-values in column/row 1
+p_values_row1 <- p_values[, 1]
+
+# Identify significant p-values
+significant_indices <- which(p_values_row1 < significance_threshold)
+
+# Extract the gene/phenotype names and p-values for significant correlations
+significant_gene_names <- colnames(data)[significant_indices]
+significant_p_values <- p_values_row1[significant_indices]
+
+# Create a data frame with gene/phenotype names and corresponding p-values
+significant_results <- data.frame(Gene_Phenotype = significant_gene_names, P_Value = significant_p_values)
+
+# Calculate the correlation coefficients for significant correlations
+significant_correlations <- data_numeric[, significant_indices]
+significant_correlation_values <- cor(significant_correlations, use = "pairwise.complete.obs", method = "pearson")
+
+# Extract correlation values for column/row 1
+significant_correlation_row1 <- significant_correlation_values[1, ]
+
+# Combine significant results with correlation coefficients
+significant_results$R_value <- significant_correlation_row1
+
+# Print the significant results
+options(max.print = 1000)  # Display up to 1000 rows
+print(significant_results)
+
+#                      Gene_Phenotype     P_Value   R_value
+# 1        CD_Kidney_F>26wk_[%]_20150 0.002221018 1.0000000
+# 2 CD_Glucose_F_18-24m[mmol/L]_24374 0.018471489 0.5648925
+# 3   LongevityDiff_F2015_UTHSC_17469 0.062732069 0.1193975
+# 4       HFD_Kidney_F>26wk_[g]_20149 0.059731385 0.6268121
