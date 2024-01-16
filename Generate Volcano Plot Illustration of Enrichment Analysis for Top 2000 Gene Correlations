@@ -1,0 +1,48 @@
+library(ggplot2)
+library(dplyr)
+library(ggrepel)
+library(plotly)
+
+#import enrichment analysis results from webgestalt top 2000 correlations
+data <- webgestalt_top_2000
+View(data)
+
+#check for scientific notations occurring as non-numeric values.
+
+#calculate '-log of FDR' and 'log2 of enrichment ratio'
+data$log2ER <- log2(data$enrichment_ratio)
+data$neglog10fdr <- -log10(data$fdr)
+
+#plot volcano
+ggplot(data, aes(x = log2ER, y = neglog10fdr, size = overlap, color = overlap)) +
+  geom_point(alpha = 0.9) +
+  scale_color_gradient(low = "grey97", high = "midnightblue", limits = c(0, 200)) +
+  scale_size_continuous(range = c(1, 7)) +  # Adjust this range based on your data
+  theme_minimal() +
+  xlab("Log2 of Enrichment Ratio") +
+  ylab("-Log10 of FDR") +
+  ggtitle("Volcano Plot: Enrichment Analysis of T1R2 top 2000 Correlations") +
+  xlim(-4, 4) +
+  ylim(0, 18)
+
+#base ggplot
+p <- ggplot(data, aes(x = log2ER, y = neglog10fdr, size = overlap, color = overlap, text = paste("Name:", name, "<br>Log2ER:", log2ER, "<br>Neglog10fdr:", neglog10fdr, "<br>Size:", size, "<br>Overlap:", overlap))) +
+  geom_point(alpha = 0.6) +
+  scale_color_gradient(low = "white", high = "midnightblue", limits = c(0, 200)) +
+  scale_size_continuous(range = c(1, 7)) +
+  geom_text(data = data %>% filter(overlap > 100), aes(label = name), vjust = 1.5, hjust = 0.5, size = 3, show.legend = FALSE) +
+  geom_vline(xintercept = 0, color = "black", linewidth = 0.5) +  # Vertical line at x = 0
+  geom_hline(yintercept = 0, color = "black", linewidth = 0.5) +  # Horizontal line at y = 0
+  theme_minimal() +
+  xlab("Log2 of Enrichment Ratio") +
+  ylab("-Log10 of FDR") +
+  ggtitle("Volcano Plot: Enrichment Analysis of T1R2 top 2000 Correlations") + 
+  xlim(-4, 4) +
+  ylim(0, 18)
+
+# Convert to plotly so gene set names appear when mouse hovers over plot points
+p_plotly <- ggplotly(p, tooltip = "text")
+
+# View the plot
+p_plotly
+
